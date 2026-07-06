@@ -29,13 +29,14 @@ const (
 // as a FIFO i.e., logs are sent in the order they are received and dropped
 // if the queue is full.
 type SocketAuditor struct {
-	dial               func() (net.Conn, error)
-	logger             *slog.Logger
-	logCh              chan *agentproto.BoundaryLog
-	batchSize          int
-	batchTimerDuration time.Duration
-	socketPath         string
-	sessionID          uuid.UUID
+	dial                func() (net.Conn, error)
+	logger              *slog.Logger
+	logCh               chan *agentproto.BoundaryLog
+	batchSize           int
+	batchTimerDuration  time.Duration
+	socketPath          string
+	sessionID           uuid.UUID
+	confinedProcessName string
 
 	droppedChannelFull atomic.Int64
 	droppedBatchFull   atomic.Int64
@@ -47,7 +48,7 @@ type SocketAuditor struct {
 // NewSocketAuditor creates a new SocketAuditor that sends logs to the agent's
 // boundary log proxy socket after SocketAuditor.Loop is called. The socket path
 // is read from EnvAuditSocketPath, falling back to defaultAuditSocketPath.
-func NewSocketAuditor(logger *slog.Logger, socketPath string, sessionID uuid.UUID) *SocketAuditor {
+func NewSocketAuditor(logger *slog.Logger, socketPath string, sessionID uuid.UUID, confinedProcessName string) *SocketAuditor {
 	// This channel buffer size intends to allow enough buffering for bursty
 	// AI agent network requests while a batch is being sent to the workspace
 	// agent.
@@ -57,12 +58,13 @@ func NewSocketAuditor(logger *slog.Logger, socketPath string, sessionID uuid.UUI
 		dial: func() (net.Conn, error) {
 			return net.Dial("unix", socketPath)
 		},
-		logger:             logger,
-		logCh:              make(chan *agentproto.BoundaryLog, logChBufSize),
-		batchSize:          defaultBatchSize,
-		batchTimerDuration: defaultBatchTimerDuration,
-		socketPath:         socketPath,
-		sessionID:          sessionID,
+		logger:              logger,
+		logCh:               make(chan *agentproto.BoundaryLog, logChBufSize),
+		batchSize:           defaultBatchSize,
+		batchTimerDuration:  defaultBatchTimerDuration,
+		socketPath:          socketPath,
+		sessionID:           sessionID,
+		confinedProcessName: confinedProcessName,
 	}
 }
 
@@ -104,7 +106,7 @@ type flushErr struct {
 func (e *flushErr) Error() string { return e.err.Error() }
 
 // flush sends the current batch of logs to the given connection.
-func flush(conn net.Conn, sessionID uuid.UUID, logs []*agentproto.BoundaryLog) *flushErr {
+func flush(conn net.Conn, sessionID uuid.UUID, confinedProcessName string, logs []*agentproto.BoundaryLog) *flushErr {
 	if len(logs) == 0 {
 		return nil
 	}
@@ -112,8 +114,9 @@ func flush(conn net.Conn, sessionID uuid.UUID, logs []*agentproto.BoundaryLog) *
 	msg := &codec.BoundaryMessage{
 		Msg: &codec.BoundaryMessage_Logs{
 			Logs: &agentproto.ReportBoundaryLogsRequest{
-				Logs:      logs,
-				SessionId: sessionID.String(),
+				Logs:                logs,
+				SessionId:           sessionID.String(),
+				ConfinedProcessName: confinedProcessName,
 			},
 		},
 	}
@@ -195,7 +198,7 @@ func (s *SocketAuditor) Loop(ctx context.Context) {
 			return
 		}
 
-		if err := flush(conn, s.sessionID, batch); err != nil {
+		if err := flush(conn, s.sessionID, s.confinedProcessName, batch); err != nil {
 			if err.permanent {
 				// Data error: discard batch to avoid infinite retries.
 				s.logger.Warn("dropping batch due to data error on flush attempt",

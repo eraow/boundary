@@ -83,6 +83,24 @@ func NewProxyServer(config Config) *Server {
 	}
 }
 
+// NewInjectEngine builds a rule engine for session-correlation inject
+// targets from sc, or returns nil when correlation is disabled or has no
+// targets. The returned engine uses the same matching semantics as --allow
+// rules so that inject-target evaluation is identical to allow-rule
+// evaluation. sc is expected to have already been validated via
+// config.ValidateSessionCorrelation.
+func NewInjectEngine(sc config.SessionCorrelationConfig, logger *slog.Logger) (*rulesengine.Engine, error) {
+	if !sc.Enabled || len(sc.InjectTargets) == 0 {
+		return nil, nil
+	}
+	rules, err := rulesengine.ParseAllowSpecs(sc.InjectTargets)
+	if err != nil {
+		return nil, fmt.Errorf("parse inject targets: %w", err)
+	}
+	eng := rulesengine.NewRuleEngine(rules, logger)
+	return &eng, nil
+}
+
 // Start starts the HTTP proxy server with TLS termination capability
 func (p *Server) Start() error {
 	if p.isStarted() {

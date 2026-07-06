@@ -19,8 +19,13 @@ const (
 	// exactly this header name.
 	SequenceNumberHeaderName = "X-Coder-Agent-Firewall-Sequence-Number"
 
-	// DefaultAIBridgePath is the path glob used when auto-deriving an inject
-	// target from CODER_AGENT_URL.
+	// DefaultAIGatewayPath is the current AI Gateway route prefix glob used
+	// when auto-deriving an inject target from CODER_AGENT_URL.
+	DefaultAIGatewayPath = "/api/v2/ai-gateway/*"
+
+	// DefaultAIBridgePath is the backward-compatible aibridge alias route
+	// prefix glob used when auto-deriving an inject target from
+	// CODER_AGENT_URL.
 	DefaultAIBridgePath = "/api/v2/aibridge/*"
 
 	// CoderAgentURLEnv is the environment variable set by the Coder workspace
@@ -46,15 +51,17 @@ type SessionCorrelationConfig struct {
 	InjectTargets []string
 }
 
-// DefaultInjectTargetFromEnv derives an inject target rule string from the
-// CODER_AGENT_URL variable in the provided environment slice. It returns ""
+// DefaultInjectTargetsFromEnv derives inject target rule strings from the
+// CODER_AGENT_URL variable in the provided environment slice. It returns nil
 // if the variable is absent, empty, or not a valid URL with a host. The
-// derived target uses DefaultAIBridgePath as the path glob so that all AI
-// Bridge traffic on the control-plane host is matched.
+// derived targets cover both the current AI Gateway route prefix
+// (DefaultAIGatewayPath) and its backward-compatible aibridge alias
+// (DefaultAIBridgePath) so that clients hitting either path on the
+// control-plane host get correlation headers injected.
 //
 // The environ parameter is accepted rather than reading os.Environ directly so
 // that callers (and tests) can supply an arbitrary environment.
-func DefaultInjectTargetFromEnv(environ []string) string {
+func DefaultInjectTargetsFromEnv(environ []string) []string {
 	var raw string
 	for _, e := range environ {
 		k, v, ok := strings.Cut(e, "=")
@@ -64,15 +71,18 @@ func DefaultInjectTargetFromEnv(environ []string) string {
 		}
 	}
 	if raw == "" {
-		return ""
+		return nil
 	}
 
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
-		return ""
+		return nil
 	}
 
-	return fmt.Sprintf("domain=%s path=%s", u.Hostname(), DefaultAIBridgePath)
+	return []string{
+		fmt.Sprintf("domain=%s path=%s", u.Hostname(), DefaultAIGatewayPath),
+		fmt.Sprintf("domain=%s path=%s", u.Hostname(), DefaultAIBridgePath),
+	}
 }
 
 // ValidateSessionCorrelation checks that the session correlation config
