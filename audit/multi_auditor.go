@@ -30,7 +30,7 @@ func (m *MultiAuditor) AuditRequest(req Request) {
 // provided configuration. It always includes a LogAuditor for stderr logging,
 // and conditionally adds a SocketAuditor if audit logs are enabled and the
 // workspace agent's log proxy socket exists.
-func SetupAuditor(ctx context.Context, logger *slog.Logger, disableAuditLogs bool, logProxySocketPath string, sessionID uuid.UUID) (Auditor, error) {
+func SetupAuditor(ctx context.Context, logger *slog.Logger, disableAuditLogs bool, logProxySocketPath string, sessionID uuid.UUID, confinedProcessName string) (Auditor, error) {
 	stderrAuditor := NewLogAuditor(logger)
 	auditors := []Auditor{stderrAuditor}
 
@@ -50,7 +50,7 @@ func SetupAuditor(ctx context.Context, logger *slog.Logger, disableAuditLogs boo
 		}
 		agentWillProxy := !os.IsNotExist(err)
 		if agentWillProxy {
-			socketAuditor := NewSocketAuditor(logger, logProxySocketPath, sessionID)
+			socketAuditor := NewSocketAuditor(logger, logProxySocketPath, sessionID, confinedProcessName)
 			go socketAuditor.Loop(ctx)
 			auditors = append(auditors, socketAuditor)
 		} else {

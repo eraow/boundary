@@ -34,6 +34,11 @@ func NewNSJailManager(
 	logger *slog.Logger,
 	config config.AppConfig,
 ) (*NSJailManager, error) {
+	injectEngine, err := proxy.NewInjectEngine(config.SessionCorrelation, logger)
+	if err != nil {
+		return nil, fmt.Errorf("build inject engine: %w", err)
+	}
+
 	// Create proxy server
 	proxyServer := proxy.NewProxyServer(proxy.Config{
 		HTTPPort:     int(config.ProxyPort),
@@ -43,6 +48,8 @@ func NewNSJailManager(
 		TLSConfig:    tlsConfig,
 		PprofEnabled: config.PprofEnabled,
 		PprofPort:    int(config.PprofPort),
+		InjectEngine: injectEngine,
+		SessionID:    config.SessionID.String(),
 	})
 
 	return &NSJailManager{

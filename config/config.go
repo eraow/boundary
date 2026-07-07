@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/coder/serpent"
@@ -100,6 +101,22 @@ type AppConfig struct {
 	// all audit events produced by this boundary invocation into a
 	// single session. Set by Run, not by configuration.
 	SessionID uuid.UUID
+
+	// ConfinedProcessName is the base name of the process boundary is
+	// confining (e.g. "claude", "codex"), derived from TargetCMD. It is
+	// reported alongside audit logs so that sessions can be attributed to
+	// the process that generated them.
+	ConfinedProcessName string
+}
+
+// confinedProcessName returns a human-readable name for the process being
+// confined, derived from the first element of the target command. It returns
+// an empty string when no command is present.
+func confinedProcessName(targetCMD []string) string {
+	if len(targetCMD) == 0 {
+		return ""
+	}
+	return filepath.Base(targetCMD[0])
 }
 
 func NewAppConfigFromCliConfig(cfg CliConfig, targetCMD []string, environ []string) (AppConfig, error) {
@@ -124,20 +141,21 @@ func NewAppConfigFromCliConfig(cfg CliConfig, targetCMD []string, environ []stri
 	}
 
 	return AppConfig{
-		AllowRules:         allAllowStrings,
-		LogLevel:           cfg.LogLevel.Value(),
-		LogDir:             cfg.LogDir.Value(),
-		ProxyPort:          cfg.ProxyPort.Value(),
-		PprofEnabled:       cfg.PprofEnabled.Value(),
-		PprofPort:          cfg.PprofPort.Value(),
-		JailType:           jailType,
-		UseRealDNS:         cfg.UseRealDNS.Value(),
-		NoUserNamespace:    cfg.NoUserNamespace.Value(),
-		TargetCMD:          targetCMD,
-		UserInfo:           userInfo,
-		DisableAuditLogs:   cfg.DisableAuditLogs.Value(),
-		LogProxySocketPath: cfg.LogProxySocketPath.Value(),
-		SessionCorrelation: sc,
+		AllowRules:          allAllowStrings,
+		LogLevel:            cfg.LogLevel.Value(),
+		LogDir:              cfg.LogDir.Value(),
+		ProxyPort:           cfg.ProxyPort.Value(),
+		PprofEnabled:        cfg.PprofEnabled.Value(),
+		PprofPort:           cfg.PprofPort.Value(),
+		JailType:            jailType,
+		UseRealDNS:          cfg.UseRealDNS.Value(),
+		NoUserNamespace:     cfg.NoUserNamespace.Value(),
+		TargetCMD:           targetCMD,
+		UserInfo:            userInfo,
+		DisableAuditLogs:    cfg.DisableAuditLogs.Value(),
+		LogProxySocketPath:  cfg.LogProxySocketPath.Value(),
+		SessionCorrelation:  sc,
+		ConfinedProcessName: confinedProcessName(targetCMD),
 	}, nil
 }
 
@@ -152,8 +170,8 @@ func buildSessionCorrelation(cfg CliConfig, environ []string) (SessionCorrelatio
 	targets := append(cfg.InjectSessionIDTargets.Value(), cfg.InjectSessionIDTarget.Value()...)
 
 	if len(targets) == 0 && cfg.SessionCorrelationEnabled.Value() {
-		if t := DefaultInjectTargetFromEnv(environ); t != "" {
-			targets = []string{t}
+		if derived := DefaultInjectTargetsFromEnv(environ); len(derived) > 0 {
+			targets = derived
 		}
 	}
 

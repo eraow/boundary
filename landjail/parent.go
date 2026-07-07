@@ -27,7 +27,7 @@ func RunParent(ctx context.Context, logger *slog.Logger, config config.AppConfig
 	ruleEngine := rulesengine.NewRuleEngine(allowRules, logger)
 
 	// Create auditor
-	auditor, err := audit.SetupAuditor(ctx, logger, config.DisableAuditLogs, config.LogProxySocketPath, config.SessionID)
+	auditor, err := audit.SetupAuditor(ctx, logger, config.DisableAuditLogs, config.LogProxySocketPath, config.SessionID, config.ConfinedProcessName)
 	if err != nil {
 		return fmt.Errorf("failed to setup auditor: %v", err)
 	}

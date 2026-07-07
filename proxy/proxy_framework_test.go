@@ -190,15 +190,14 @@ func (pt *ProxyTest) Start() *ProxyTest {
 	}
 
 	pt.server = NewProxyServer(Config{
-		HTTPPort:           pt.port,
-		RuleEngine:         ruleEngine,
-		Auditor:            auditor,
-		Logger:             logger,
-		TLSConfig:          tlsConfig,
-		SessionCorrelation: pt.sessionCorrelation,
-		InjectEngine:       injectEngine,
-		SessionID:          pt.sessionID,
-		ForwardTransport:   pt.forwardTransport,
+		HTTPPort:         pt.port,
+		RuleEngine:       ruleEngine,
+		Auditor:          auditor,
+		Logger:           logger,
+		TLSConfig:        tlsConfig,
+		InjectEngine:     injectEngine,
+		SessionID:        pt.sessionID,
+		ForwardTransport: pt.forwardTransport,
 	})
 
 	err = pt.server.Start()

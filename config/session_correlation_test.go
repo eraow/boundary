@@ -160,7 +160,10 @@ func TestNewAppConfigFromCliConfig_SessionCorrelation(t *testing.T) {
 			}(),
 			environ:     []string{"CODER_AGENT_URL=https://dev.coder.com/"},
 			wantEnabled: true,
-			wantTargets: []string{"domain=dev.coder.com path=" + DefaultAIBridgePath},
+			wantTargets: []string{
+				"domain=dev.coder.com path=" + DefaultAIGatewayPath,
+				"domain=dev.coder.com path=" + DefaultAIBridgePath,
+			},
 		},
 		{
 			name: "enabled with no targets, CODER_AGENT_URL absent -> error",
@@ -217,48 +220,57 @@ func TestNewAppConfigFromCliConfig_SessionCorrelation(t *testing.T) {
 	}
 }
 
-func TestDefaultInjectTargetFromEnv(t *testing.T) {
+func TestDefaultInjectTargetsFromEnv(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
 		environ []string
-		want    string
+		want    []string
 	}{
 		{
 			name:    "valid URL with trailing slash",
 			environ: []string{"CODER_AGENT_URL=https://dev.coder.com/"},
-			want:    "domain=dev.coder.com path=" + DefaultAIBridgePath,
+			want: []string{
+				"domain=dev.coder.com path=" + DefaultAIGatewayPath,
+				"domain=dev.coder.com path=" + DefaultAIBridgePath,
+			},
 		},
 		{
 			name:    "valid URL without trailing slash",
 			environ: []string{"CODER_AGENT_URL=https://dev.coder.com"},
-			want:    "domain=dev.coder.com path=" + DefaultAIBridgePath,
+			want: []string{
+				"domain=dev.coder.com path=" + DefaultAIGatewayPath,
+				"domain=dev.coder.com path=" + DefaultAIBridgePath,
+			},
 		},
 		{
 			name:    "URL with port",
 			environ: []string{"CODER_AGENT_URL=https://dev.coder.com:8443/"},
-			want:    "domain=dev.coder.com path=" + DefaultAIBridgePath,
+			want: []string{
+				"domain=dev.coder.com path=" + DefaultAIGatewayPath,
+				"domain=dev.coder.com path=" + DefaultAIBridgePath,
+			},
 		},
 		{
 			name:    "unset variable",
 			environ: []string{},
-			want:    "",
+			want:    nil,
 		},
 		{
 			name:    "empty value",
 			environ: []string{"CODER_AGENT_URL="},
-			want:    "",
+			want:    nil,
 		},
 		{
 			name:    "no host in URL",
 			environ: []string{"CODER_AGENT_URL=not-a-url"},
-			want:    "",
+			want:    nil,
 		},
 		{
 			name:    "other env vars present but not CODER_AGENT_URL",
 			environ: []string{"CODER_URL=https://dev.coder.com/", "HOME=/home/user"},
-			want:    "",
+			want:    nil,
 		},
 	}
 
@@ -266,9 +278,15 @@ func TestDefaultInjectTargetFromEnv(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := DefaultInjectTargetFromEnv(tc.environ)
-			if got != tc.want {
-				t.Errorf("got %q, want %q", got, tc.want)
+			got := DefaultInjectTargetsFromEnv(tc.environ)
+			if len(got) != len(tc.want) {
+				t.Fatalf("len: got %d %q, want %d %q",
+					len(got), got, len(tc.want), tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("[%d]: got %q, want %q", i, got[i], tc.want[i])
+				}
 			}
 		})
 	}
@@ -381,6 +399,7 @@ func TestBuildSessionCorrelation_AgentURLFallback(t *testing.T) {
 			},
 			environ: []string{"CODER_AGENT_URL=https://dev.coder.com/"},
 			wantTargets: []string{
+				"domain=dev.coder.com path=" + DefaultAIGatewayPath,
 				"domain=dev.coder.com path=" + DefaultAIBridgePath,
 			},
 		},

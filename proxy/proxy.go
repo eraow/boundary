@@ -51,12 +51,10 @@ type Config struct {
 	TLSConfig    *tls.Config
 	PprofEnabled bool
 	PprofPort    int
-	// SessionCorrelation controls header injection for AI Bridge
-	// correlation. See config.SessionCorrelationConfig for details.
-	SessionCorrelation config.SessionCorrelationConfig
 	// InjectEngine, if non-nil, is used to evaluate whether outgoing
-	// requests match configured inject targets. Built from
-	// SessionCorrelation.InjectTargets using rulesengine.ParseAllowSpecs.
+	// requests match configured inject targets for session correlation.
+	// Built from config.SessionCorrelationConfig.InjectTargets via
+	// NewInjectEngine using rulesengine.ParseAllowSpecs.
 	InjectEngine *rulesengine.Engine
 	// SessionID is the boundary session UUID injected as a header
 	// on matching requests.
@@ -81,6 +79,24 @@ func NewProxyServer(config Config) *Server {
 		sessionID:        config.SessionID,
 		forwardTransport: config.ForwardTransport,
 	}
+}
+
+// NewInjectEngine builds a rule engine for session-correlation inject
+// targets from sc, or returns nil when correlation is disabled or has no
+// targets. The returned engine uses the same matching semantics as --allow
+// rules so that inject-target evaluation is identical to allow-rule
+// evaluation. sc is expected to have already been validated via
+// config.ValidateSessionCorrelation.
+func NewInjectEngine(sc config.SessionCorrelationConfig, logger *slog.Logger) (*rulesengine.Engine, error) {
+	if !sc.Enabled || len(sc.InjectTargets) == 0 {
+		return nil, nil
+	}
+	rules, err := rulesengine.ParseAllowSpecs(sc.InjectTargets)
+	if err != nil {
+		return nil, fmt.Errorf("parse inject targets: %w", err)
+	}
+	eng := rulesengine.NewRuleEngine(rules, logger)
+	return &eng, nil
 }
 
 // Start starts the HTTP proxy server with TLS termination capability

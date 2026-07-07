@@ -464,12 +464,12 @@ func TestSocketAuditor_Loop_ShutdownFlushIncludesDrops(t *testing.T) {
 func TestFlush_EmptyBatch(t *testing.T) {
 	t.Parallel()
 
-	err := flush(nil, uuid.Nil, nil)
+	err := flush(nil, uuid.Nil, "", nil)
 	if err != nil {
 		t.Errorf("expected nil error for empty batch, got %v", err)
 	}
 
-	err = flush(nil, uuid.Nil, []*agentproto.BoundaryLog{})
+	err = flush(nil, uuid.Nil, "", []*agentproto.BoundaryLog{})
 	if err != nil {
 		t.Errorf("expected nil error for empty slice, got %v", err)
 	}
@@ -515,6 +515,9 @@ func TestSocketAuditor_Loop_FlushIncludesSessionID(t *testing.T) {
 		expectedSessionID := uuid.MustParse("00000000-0000-4000-8000-000000000001").String()
 		if req.SessionId != expectedSessionID {
 			t.Errorf("expected SessionId=%s, got %q", expectedSessionID, req.SessionId)
+		}
+		if req.ConfinedProcessName != "claude" {
+			t.Errorf("expected ConfinedProcessName=%q, got %q", "claude", req.ConfinedProcessName)
 		}
 		if len(req.Logs) != auditor.batchSize {
 			t.Errorf("expected %d logs, got %d", auditor.batchSize, len(req.Logs))
@@ -572,11 +575,12 @@ func setupTestAuditor(t *testing.T) (*SocketAuditor, net.Conn) {
 		dial: func() (net.Conn, error) {
 			return clientConn, nil
 		},
-		logger:             logger,
-		logCh:              make(chan *agentproto.BoundaryLog, 2*defaultBatchSize),
-		batchSize:          defaultBatchSize,
-		batchTimerDuration: defaultBatchTimerDuration,
-		sessionID:          uuid.MustParse("00000000-0000-4000-8000-000000000001"),
+		logger:              logger,
+		logCh:               make(chan *agentproto.BoundaryLog, 2*defaultBatchSize),
+		batchSize:           defaultBatchSize,
+		batchTimerDuration:  defaultBatchTimerDuration,
+		sessionID:           uuid.MustParse("00000000-0000-4000-8000-000000000001"),
+		confinedProcessName: "claude",
 	}
 
 	return auditor, serverConn

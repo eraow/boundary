@@ -31,6 +31,12 @@ func NewLandJail(
 	logger *slog.Logger,
 	config config.AppConfig,
 ) (*LandJail, error) {
+	// Build the session-correlation inject engine (nil when disabled).
+	injectEngine, err := proxy.NewInjectEngine(config.SessionCorrelation, logger)
+	if err != nil {
+		return nil, fmt.Errorf("build inject engine: %w", err)
+	}
+
 	// Create proxy server
 	proxyServer := proxy.NewProxyServer(proxy.Config{
 		HTTPPort:     int(config.ProxyPort),
@@ -40,6 +46,8 @@ func NewLandJail(
 		TLSConfig:    tlsConfig,
 		PprofEnabled: config.PprofEnabled,
 		PprofPort:    int(config.PprofPort),
+		InjectEngine: injectEngine,
+		SessionID:    config.SessionID.String(),
 	})
 
 	return &LandJail{
