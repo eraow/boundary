@@ -46,8 +46,9 @@ type SocketAuditor struct {
 }
 
 // NewSocketAuditor creates a new SocketAuditor that sends logs to the agent's
-// boundary log proxy socket after SocketAuditor.Loop is called. The socket path
-// is read from EnvAuditSocketPath, falling back to defaultAuditSocketPath.
+// boundary log proxy socket at socketPath after SocketAuditor.Loop is called.
+// The confinedProcessName is reported alongside logs so sessions can be
+// attributed to the process that generated them.
 func NewSocketAuditor(logger *slog.Logger, socketPath string, sessionID uuid.UUID, confinedProcessName string) *SocketAuditor {
 	// This channel buffer size intends to allow enough buffering for bursty
 	// AI agent network requests while a batch is being sent to the workspace

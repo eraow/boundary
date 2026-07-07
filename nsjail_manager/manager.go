@@ -42,16 +42,15 @@ func NewNSJailManager(
 
 	// Create proxy server
 	proxyServer := proxy.NewProxyServer(proxy.Config{
-		HTTPPort:           int(config.ProxyPort),
-		RuleEngine:         ruleEngine,
-		Auditor:            auditor,
-		Logger:             logger,
-		TLSConfig:          tlsConfig,
-		PprofEnabled:       config.PprofEnabled,
-		PprofPort:          int(config.PprofPort),
-		SessionCorrelation: config.SessionCorrelation,
-		InjectEngine:       injectEngine,
-		SessionID:          config.SessionID.String(),
+		HTTPPort:     int(config.ProxyPort),
+		RuleEngine:   ruleEngine,
+		Auditor:      auditor,
+		Logger:       logger,
+		TLSConfig:    tlsConfig,
+		PprofEnabled: config.PprofEnabled,
+		PprofPort:    int(config.PprofPort),
+		InjectEngine: injectEngine,
+		SessionID:    config.SessionID.String(),
 	})
 
 	return &NSJailManager{

@@ -51,12 +51,10 @@ type Config struct {
 	TLSConfig    *tls.Config
 	PprofEnabled bool
 	PprofPort    int
-	// SessionCorrelation controls header injection for AI Bridge
-	// correlation. See config.SessionCorrelationConfig for details.
-	SessionCorrelation config.SessionCorrelationConfig
 	// InjectEngine, if non-nil, is used to evaluate whether outgoing
-	// requests match configured inject targets. Built from
-	// SessionCorrelation.InjectTargets using rulesengine.ParseAllowSpecs.
+	// requests match configured inject targets for session correlation.
+	// Built from config.SessionCorrelationConfig.InjectTargets via
+	// NewInjectEngine using rulesengine.ParseAllowSpecs.
 	InjectEngine *rulesengine.Engine
 	// SessionID is the boundary session UUID injected as a header
 	// on matching requests.

@@ -25,7 +25,10 @@ const (
 
 	// DefaultAIBridgePath is the backward-compatible aibridge alias route
 	// prefix glob used when auto-deriving an inject target from
-	// CODER_AGENT_URL.
+	// CODER_AGENT_URL. It is transitional: once all Coder deployments serve
+	// the gateway exclusively at DefaultAIGatewayPath, this alias and the
+	// extra inject target derived from it in DefaultInjectTargetsFromEnv
+	// should be removed.
 	DefaultAIBridgePath = "/api/v2/aibridge/*"
 
 	// CoderAgentURLEnv is the environment variable set by the Coder workspace
