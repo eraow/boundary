@@ -34,7 +34,6 @@ func NewNSJailManager(
 	logger *slog.Logger,
 	config config.AppConfig,
 ) (*NSJailManager, error) {
-	// Build the session-correlation inject engine (nil when disabled).
 	injectEngine, err := proxy.NewInjectEngine(config.SessionCorrelation, logger)
 	if err != nil {
 		return nil, fmt.Errorf("build inject engine: %w", err)
