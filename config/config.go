@@ -2,7 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/coder/serpent"
@@ -64,6 +67,7 @@ type CliConfig struct {
 	LogLevel           serpent.String         `yaml:"log_level"`
 	LogDir             serpent.String         `yaml:"log_dir"`
 	ProxyPort          serpent.Int64          `yaml:"proxy_port"`
+	UpstreamProxy      serpent.String         `yaml:"upstream_proxy"`
 	PprofEnabled       serpent.Bool           `yaml:"pprof_enabled"`
 	PprofPort          serpent.Int64          `yaml:"pprof_port"`
 	JailType           serpent.String         `yaml:"jail_type"`
@@ -83,6 +87,7 @@ type AppConfig struct {
 	LogLevel           string
 	LogDir             string
 	ProxyPort          int64
+	UpstreamProxy      string
 	PprofEnabled       bool
 	PprofPort          int64
 	JailType           JailType
@@ -140,11 +145,17 @@ func NewAppConfigFromCliConfig(cfg CliConfig, targetCMD []string, environ []stri
 		return AppConfig{}, fmt.Errorf("session correlation config: %w", err)
 	}
 
+	upstreamProxy, err := normalizeUpstreamProxy(cfg.UpstreamProxy.Value(), cfg.ProxyPort.Value())
+	if err != nil {
+		return AppConfig{}, err
+	}
+
 	return AppConfig{
 		AllowRules:          allAllowStrings,
 		LogLevel:            cfg.LogLevel.Value(),
 		LogDir:              cfg.LogDir.Value(),
 		ProxyPort:           cfg.ProxyPort.Value(),
+		UpstreamProxy:       upstreamProxy,
 		PprofEnabled:        cfg.PprofEnabled.Value(),
 		PprofPort:           cfg.PprofPort.Value(),
 		JailType:            jailType,
@@ -157,6 +168,85 @@ func NewAppConfigFromCliConfig(cfg CliConfig, targetCMD []string, environ []stri
 		SessionCorrelation:  sc,
 		ConfinedProcessName: confinedProcessName(targetCMD),
 	}, nil
+}
+
+func normalizeUpstreamProxy(raw string, boundaryProxyPort int64) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+
+	upstreamURL, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid upstream proxy URL")
+	}
+	if upstreamURL.Scheme != "http" && upstreamURL.Scheme != "https" {
+		return "", fmt.Errorf("upstream proxy URL must use http or https scheme")
+	}
+	if upstreamURL.Hostname() == "" {
+		return "", fmt.Errorf("upstream proxy URL must include a host")
+	}
+	if hasInvalidPort(upstreamURL) || hasOutOfRangePort(upstreamURL) {
+		return "", fmt.Errorf("upstream proxy URL has an invalid port")
+	}
+	if pointsToBoundaryProxy(upstreamURL, boundaryProxyPort) {
+		return "", fmt.Errorf("upstream proxy URL must not point to boundary's local proxy listener")
+	}
+
+	return upstreamURL.String(), nil
+}
+
+func hasInvalidPort(upstreamURL *url.URL) bool {
+	if upstreamURL.Port() != "" {
+		return false
+	}
+
+	host := upstreamURL.Host
+	if strings.HasPrefix(host, "[") {
+		bracket := strings.LastIndex(host, "]")
+		return bracket >= 0 && len(host) > bracket+1
+	}
+
+	return strings.Count(host, ":") > 0
+}
+
+func hasOutOfRangePort(upstreamURL *url.URL) bool {
+	port := upstreamURL.Port()
+	if port == "" {
+		return false
+	}
+
+	portNumber, err := strconv.Atoi(port)
+	return err != nil || portNumber < 1 || portNumber > 65535
+}
+
+func pointsToBoundaryProxy(upstreamURL *url.URL, boundaryProxyPort int64) bool {
+	port := upstreamURL.Port()
+	if port == "" {
+		port = defaultPortForScheme(upstreamURL.Scheme)
+	}
+	if port == "" || port != strconv.FormatInt(boundaryProxyPort, 10) {
+		return false
+	}
+
+	host := strings.ToLower(upstreamURL.Hostname())
+	if host == "localhost" {
+		return true
+	}
+
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsLoopback() || ip.IsUnspecified())
+}
+
+func defaultPortForScheme(scheme string) string {
+	switch scheme {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
 }
 
 // buildSessionCorrelation merges CLI and YAML inject target sources

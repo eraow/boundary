@@ -37,17 +37,26 @@ func NewLandJail(
 		return nil, fmt.Errorf("build inject engine: %w", err)
 	}
 
+	forwardTransport, err := proxy.NewForwardTransport(config.UpstreamProxy)
+	if err != nil {
+		return nil, fmt.Errorf("build upstream proxy transport: %w", err)
+	}
+	if config.UpstreamProxy != "" {
+		logger.Info("Using upstream proxy", "upstream_proxy", proxy.RedactProxyURL(config.UpstreamProxy))
+	}
+
 	// Create proxy server
 	proxyServer := proxy.NewProxyServer(proxy.Config{
-		HTTPPort:     int(config.ProxyPort),
-		RuleEngine:   ruleEngine,
-		Auditor:      auditor,
-		Logger:       logger,
-		TLSConfig:    tlsConfig,
-		PprofEnabled: config.PprofEnabled,
-		PprofPort:    int(config.PprofPort),
-		InjectEngine: injectEngine,
-		SessionID:    config.SessionID.String(),
+		HTTPPort:         int(config.ProxyPort),
+		RuleEngine:       ruleEngine,
+		Auditor:          auditor,
+		Logger:           logger,
+		TLSConfig:        tlsConfig,
+		PprofEnabled:     config.PprofEnabled,
+		PprofPort:        int(config.PprofPort),
+		InjectEngine:     injectEngine,
+		SessionID:        config.SessionID.String(),
+		ForwardTransport: forwardTransport,
 	})
 
 	return &LandJail{
